@@ -155,13 +155,25 @@ def do_show_page_content(parser, token):
 class ShowPageContentNode(template.Node):
 
     def __init__(self, page, block_name):
-        self.page = template.Variable(page)
+        if page == 'fiber_page':
+            self.page = template.Variable(page)
+        else:
+            self.page = page
+            self.current_page = template.Variable('fiber_page')
         self.block_name = block_name
 
     def render(self, context):
         try:
-            page = self.page.resolve(context)
-            page_content_items = page.page_content_items.filter(block_name=self.block_name).order_by('sort').select_related('content_item')
+            current_page = None
+            if isinstance( self.page, template.Variable ):
+                page = self.page.resolve(context)
+            else:
+                page = Page.objects.get(url__exact=self.page)
+                try:
+                    current_page = self.current_page.resolve(context)
+                except:
+                    current_page = page
+            page_content_items = page.page_content_items.filter(block_name=self.block_name).order_by('sort')
 
             content_items = []
             for page_content_item in page_content_items:
@@ -170,7 +182,10 @@ class ShowPageContentNode(template.Node):
                 content_items.append(content_item)
 
             context['ContentItem'] = ContentItem
-            context['fiber_page'] = page
+            if current_page:
+                context['fiber_page'] = current_page
+            else:
+                context['fiber_page'] = page
             context['fiber_block_name'] = self.block_name
             context['fiber_content_items'] = content_items
             t = template.loader.get_template('fiber/content_items.html')
